@@ -60,7 +60,7 @@ function b64url2b64($base64url) {
     // "Shouldn't" be necessary, but why not
     $padding = strlen($base64url) % 4;
     if ($padding > 0) {
-	$base64url .= str_repeat("=", 4 - $padding);
+        $base64url .= str_repeat("=", 4 - $padding);
     }
     return strtr($base64url, '-_', '+/');
 }
@@ -171,7 +171,7 @@ class OpenIDConnectClient
      * @return bool
      * @throws OpenIDConnectClientException
      */
-    public function authenticate() {
+    public function authenticate($districtId) {
 
         // Do a preemptive check to see if the provider has thrown an error from a previous redirect
         if (isset($_REQUEST['error'])) {
@@ -194,20 +194,20 @@ class OpenIDConnectClient
                 throw new OpenIDConnectClientException("Unable to determine state");
             }
 
-	    if (!property_exists($token_json, 'id_token')) {
-		throw new OpenIDConnectClientException("User did not authorize openid scope.");
-	    }
+            if (!property_exists($token_json, 'id_token')) {
+                throw new OpenIDConnectClientException("User did not authorize openid scope.");
+            }
 
             $claims = $this->decodeJWT($token_json->id_token, 1);
 
-	    // Verify the signature
-	    if ($this->canVerifySignatures()) {
-		if (!$this->verifyJWTsignature($token_json->id_token)) {
-		    throw new OpenIDConnectClientException ("Unable to verify signature");
-		}
-	    } else {
-		user_error("Warning: JWT signature verification unavailable.");
-	    }
+            // Verify the signature
+            if ($this->canVerifySignatures()) {
+                if (!$this->verifyJWTsignature($token_json->id_token)) {
+                    throw new OpenIDConnectClientException ("Unable to verify signature");
+                }
+            } else {
+                user_error("Warning: JWT signature verification unavailable.");
+            }
 
             // If this is a valid claim
             if ($this->verifyJWTclaims($claims)) {
@@ -230,7 +230,7 @@ class OpenIDConnectClient
 
         } else {
 
-            $this->requestAuthorization();
+            $this->requestAuthorization($districtId);
             return false;
         }
 
@@ -331,18 +331,18 @@ class OpenIDConnectClient
      * Start Here
      * @return void
      */
-    private function requestAuthorization() {
+    private function requestAuthorization($districtId = null) {
 
         $auth_endpoint = $this->getProviderConfigValue("authorization_endpoint");
         $response_type = "code";
 
         // Generate and store a nonce in the session
         // The nonce is an arbitrary value
-        $nonce = $this->generateRandString();
+        $nonce = $districtId ?: $this->generateRandString();
         $_SESSION['openid_connect_nonce'] = $nonce;
 
         // State essentially acts as a session key for OIDC
-        $state = $this->generateRandString();
+        $state = $districtId ?: $this->generateRandString();
         $_SESSION['openid_connect_state'] = $state;
 
         $auth_params = array_merge($this->authParams, array(
@@ -422,23 +422,23 @@ class OpenIDConnectClient
     }
 
     /**
-      * @param array $keys
-      * @param array $header
-      * @throws OpenIDConnectClientException
-      * @return object
-      */
-     private function get_key_for_header($keys, $header) {
-         foreach ($keys as $key) {
-           if ((!(isset($key->alg) && isset($header->kid)) && $key->kty == 'RSA') || ($key->alg == $header->alg && $key->kid == $header->kid)) {
-                 return $key;
-             }
-         }
-         if (isset($header->kid)) {
-             throw new OpenIDConnectClientException('Unable to find a key for (algorithm, kid):' . $header->alg . ', ' . $header->kid . ')');
-         } else {
-             throw new OpenIDConnectClientException('Unable to find a key for RSA');
-         }
-     }
+     * @param array $keys
+     * @param array $header
+     * @throws OpenIDConnectClientException
+     * @return object
+     */
+    private function get_key_for_header($keys, $header) {
+        foreach ($keys as $key) {
+            if ((!(isset($key->alg) && isset($header->kid)) && $key->kty == 'RSA') || ($key->alg == $header->alg && $key->kid == $header->kid)) {
+                return $key;
+            }
+        }
+        if (isset($header->kid)) {
+            throw new OpenIDConnectClientException('Unable to find a key for (algorithm, kid):' . $header->alg . ', ' . $header->kid . ')');
+        } else {
+            throw new OpenIDConnectClientException('Unable to find a key for RSA');
+        }
+    }
 
 
 
@@ -485,16 +485,16 @@ class OpenIDConnectClient
         }
         $verified = false;
         switch ($header->alg) {
-        case 'RS256':
-        case 'RS384':
-        case 'RS512':
-            $hashtype = 'sha' . substr($header->alg, 2);
-            $verified = $this->verifyRSAJWTsignature($hashtype,
-                                                     $this->get_key_for_header($jwks->keys, $header),
-                                                     $payload, $signature);
-            break;
-        default:
-            throw new OpenIDConnectClientException('No support for signature type: ' . $header->alg);
+            case 'RS256':
+            case 'RS384':
+            case 'RS512':
+                $hashtype = 'sha' . substr($header->alg, 2);
+                $verified = $this->verifyRSAJWTsignature($hashtype,
+                    $this->get_key_for_header($jwks->keys, $header),
+                    $payload, $signature);
+                break;
+            default:
+                throw new OpenIDConnectClientException('No support for signature type: ' . $header->alg);
         }
         return $verified;
     }
@@ -611,7 +611,7 @@ class OpenIDConnectClient
 
         // If we set some heaers include them
         if(count($headers) > 0) {
-          curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
+            curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
         }
 
         // Set URL to download
@@ -786,7 +786,7 @@ class OpenIDConnectClient
      * @return bool
      */
     public function canVerifySignatures() {
-      return class_exists('Crypt_RSA');
+        return class_exists('Crypt_RSA');
     }
 
     /**
